@@ -201,7 +201,7 @@ class PPO:
         self.render:bool = False
         self.render_every_i:int = 10
         self.gamma:float = 0.95
-        self.seed:bool|None = None
+        self.seed:int|None = None
         self.exploration:int = 0.1
         self.parameters_max_change = 3
 
@@ -295,4 +295,5 @@ class PPO:
             raise "path isn\'t exist"
 
 #podtlenem
+
 
