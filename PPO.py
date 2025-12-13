@@ -80,7 +80,7 @@ class PPO:
 
                 surr1 = A_k * ratio
                 surr2 = torch.clamp(ratio, 1 - self.clip, 1 + self.clip) * A_k
-                ent = ent.mean()
+                ent = -ent.mean()
 
                 actor_loss = (-torch.min(surr1, surr2)).mean() + self.exploration * ent
                 critic_loss = nn.MSELoss()(V, batch_rtgs)
@@ -126,7 +126,7 @@ class PPO:
 
                 obs, rew, terminated, truncated, _ = self.env.step(action)
 
-                done = terminated #| truncated
+                done = terminated | truncated
 
                 ep_rews.append(rew)
                 batch_acts.append(action)
@@ -194,15 +194,15 @@ class PPO:
     def _init_hyperparameters(self, hyperparameters) -> None:
         self.lr:float = 0.0001
         self.save_freq:int = 10
-        self.max_timestep_per_episode:int = 2000
-        self.timesteps_per_batch:int = 7000
+        self.max_timestep_per_episode:int = 1600
+        self.timesteps_per_batch:int = 4800
         self.n_updates_per_iteration:int = 4
         self.clip:float = 0.2
         self.render:bool = False
         self.render_every_i:int = 10
         self.gamma:float = 0.95
         self.seed:bool|None = None
-        self.exploration:int = 0
+        self.exploration:int = 0.1
         self.parameters_max_change = 3
 
         for param, val in hyperparameters.items():
@@ -293,4 +293,5 @@ class PPO:
                 self.critic.load_state_dict(torch.load(path_to_critic))
         except FileNotFoundError :
             raise "path isn\'t exist"
+
 #podtlenem
