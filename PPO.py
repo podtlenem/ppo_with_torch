@@ -7,7 +7,7 @@ from torch.distributions import MultivariateNormal, Categorical
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-from typing import Tuple
+from typing import Tuple,Generator,Any
 import matplotlib
 from gymnasium import Env
 
@@ -19,10 +19,13 @@ matplotlib.use("Agg")
 PLOT_PATH = "results/ppo_learning_graph"
 
 class PPO:
-    def __init__(self, policy_class:torch.nn.Module, env:Env, **hyperparameters):
+    def __init__(self, policy_class, env:Env, **hyperparameters):
         self._init_hyperparameters(hyperparameters)
 
         self.best_mean_rew:float = -99999
+        self.actor_state_dict_from_best = None
+        self.critic_state_dict_from_best = None
+
         self.avg_rew_hist:np.ndarray = np.array([])
         self.avg_actor_losses_hist:np.ndarray = np.array([])
 
@@ -31,8 +34,8 @@ class PPO:
         self.obs_dim:int = env.observation_space.shape[0]
         self.act_dim:int = env.action_space.shape[0] if self.continues_env else env.action_space.n
 
-        self.actor:nn.Module = policy_class(self.obs_dim, self.act_dim)
-        self.critic:nn.Module = policy_class(self.obs_dim, 1)
+        self.actor = policy_class(self.obs_dim, self.act_dim)
+        self.critic = policy_class(self.obs_dim, 1)
         self.actor_optim:torch.optim.optimizer.Optimizer = Adam(self.actor.parameters(), lr=self.lr)
         self.critic_optim:torch.optim.optimizer.Optimizer = Adam(self.critic.parameters(), lr=self.lr)
 
@@ -49,7 +52,7 @@ class PPO:
             'actor_losses': []
         }
 
-    def learn(self, total_timesteps:int = 1_000_00):
+    def learn(self, total_timesteps:int = 1_000_000) -> Tuple[dict,dict]:
         print("start training PPO")
         t_so_far:int = 0
         i_so_far:int = 0
@@ -99,9 +102,11 @@ class PPO:
 
             self._log_summary()
 
-            if i_so_far % self.save_freq == 0:
-                torch.save(self.actor.state_dict(), 'results/ppo_actor.pth')
-                torch.save(self.critic.state_dict(), 'results/ppo_critic.pth')
+            #if i_so_far % self.save_freq == 0:
+            #    torch.save(self.actor.state_dict(), 'results/ppo_actor.pth')
+            #    torch.save(self.critic.state_dict(), 'results/ppo_critic.pth')
+
+        return self.actor.state_dict(),self.critic.state_dict()
 
     def rollout(self) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, list[int]]:
         batch_obs = []
@@ -165,14 +170,14 @@ class PPO:
         return action.detach().numpy(), log_prob.detach()
 
     def evaluate(self, batch_obs, batch_acts) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        V = self.critic(batch_obs).squeeze()
+        v = self.critic(batch_obs).squeeze()
         mean = self.actor(batch_obs)
         dist = MultivariateNormal(mean, self.cov_mat) if self.continues_env else Categorical(logits=mean)
         log_prob = dist.log_prob(batch_acts)
         ent = dist.entropy()
-        return V, log_prob,ent
+        return v, log_prob,ent
 
-    def show_results(self):
+    def show_results(self) -> Generator[int,Any,Any]:
         print("start show")
         iteration_counter = 0
         while True:
@@ -182,17 +187,17 @@ class PPO:
 
             epiode_reward = 0
 
-            while not done:
+            while not done and epiode_reward<10_000:
 
                 action = self.actor(obs).detach().numpy() if self.continues_env else self.actor(obs).argmax().item()
                 obs, rew, terminated, truncated, _ = self.env.step(action)
 
                 epiode_reward += rew
-                done = terminated | truncated
+                done = terminated #| truncated
             yield epiode_reward
 
     def _init_hyperparameters(self, hyperparameters) -> None:
-        self.lr:float = 0.0001
+        self.lr:float = 0.0005
         self.save_freq:int = 10
         self.max_timestep_per_episode:int = 1600
         self.timesteps_per_batch:int = 4800
@@ -202,13 +207,13 @@ class PPO:
         self.render_every_i:int = 10
         self.gamma:float = 0.95
         self.seed:int|None = None
-        self.exploration:int = 0.1
-        self.parameters_max_change = 3
+        self.exploration:float = 0.2
+        self.parameters_max_change:float = 2.5
 
         for param, val in hyperparameters.items():
             exec('self.' + param + ' = ' + str(val))
 
-        if self.seed != None:
+        if self.seed is not None:
             assert (type(self.seed) == int)
             torch.manual_seed(self.seed)
             print("seed set")
@@ -229,7 +234,8 @@ class PPO:
 
         if avg_ep_rews > self.best_mean_rew:
             self.best_mean_rew = avg_ep_rews
-
+            torch.save(self.actor.state_dict(), 'results/ppo_actor.pth')
+            torch.save(self.critic.state_dict(), 'results/ppo_critic.pth')
 
             avg_ep_lens = str(round(avg_ep_lens, 2))
             avg_ep_rews = str(round(avg_ep_rews, 2))
@@ -242,6 +248,7 @@ class PPO:
             print(f"Average Loss: {avg_actor_loss}", flush=True)
             print(f"Timesteps So Far: {t_so_far}", flush=True)
             print(f"Iteration took: {delta_t} secs", flush=True)
+            print("Model State Dict save")
             print(f"------------------------------------------------------", flush=True)
             print(flush=True)
 
@@ -293,8 +300,4 @@ class PPO:
                 self.critic.load_state_dict(torch.load(path_to_critic))
         except FileNotFoundError :
             raise "path isn\'t exist"
-
 #podtlenem
-
-
-
