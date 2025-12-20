@@ -9,15 +9,17 @@ def args_for_run():
     pares.add_argument('--path_to_actor', dest='actor_model', type=str, default='')
     pares.add_argument('--path_to_critic', dest='critic_model', type=str, default='')
     pares.add_argument('--env',dest='env',type=str,default='CartPole-v1')
+    pares.add_argument("--env_args",dest="arguments",type=str,default="")
     args = pares.parse_args()
     return args
 
 if __name__ == "__main__":
     args = args_for_run()
+    transofrm_args = dict(item.split("=") for item in args.arguments.split(",")) if args.arguments else {}
     if not args.env in gym.envs.registry:
         raise ValueError("such env dosen\'t exist")
     else:
-        env = gym.make(args.env ,render_mode = 'human' if args.mode == 'test' else None)
+        env = gym.make(args.env ,render_mode = 'human' if args.mode == 'test' else None,**transofrm_args)
     ppo = PPO(NeuralNet, env)
     load =  args.actor_model != "" and args.critic_model != ""
     if args.mode == 'train':
