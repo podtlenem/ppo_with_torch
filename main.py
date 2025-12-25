@@ -13,9 +13,6 @@ def args_for_run():
     args = pares.parse_args()
     return args
 
-#hello
-#reafactor
-
 if __name__ == "__main__":
     args = args_for_run()
     transofrm_args = dict(item.split("=") for item in args.arguments.split(",")) if args.arguments else {}
