@@ -3,8 +3,6 @@ from PPO import PPO
 import gymnasium as gym
 import argparse
 
-#test
-
 def args_for_run():
     pares = argparse.ArgumentParser(description="traning or testing model")
     pares.add_argument('mode', help='', default='train')
